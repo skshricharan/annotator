@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Annotation Tool</title>
+    <title>Mobile Image Annotation Tool</title>
     <style>
         * {
             margin: 0;
@@ -114,20 +114,17 @@
             align-items: center;
         }
 
-        .roboflow-section {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 5px;
+        .action-buttons {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
         }
 
-        .config-input {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
+        .action-buttons .btn {
+            flex: 1;
+            min-width: 120px;
         }
 
         .status {
@@ -179,9 +176,9 @@
             <!-- Roboflow Configuration -->
             <div class="roboflow-section">
                 <h3>Roboflow Configuration</h3>
-                <input type="text" id="apiKey" class="config-input" placeholder="Roboflow API Key" value="jBfmMz2OXbPkAGNnvgEj">
-                <input type="text" id="projectId" class="config-input" placeholder="Project ID" value="shri-4z6uc/fruit-counter-9n8yh">
-                <input type="text" id="versionId" class="config-input" placeholder="3">
+                <input type="text" id="apiKey" class="config-input" placeholder="Roboflow API Key" value="YOUR_API_KEY_HERE">
+                <input type="text" id="projectId" class="config-input" placeholder="Project ID" value="YOUR_PROJECT_ID_HERE">
+                <input type="text" id="versionId" class="config-input" placeholder="Version ID (optional)">
         function getYOLO12TextFormat() {
             // Get unique class names and create class mapping
             const uniqueClasses = [...new Set(annotations.map(a => a.label))];
@@ -519,6 +516,17 @@
                     height: height
                 };
             });
+        }
+
+        function startNewAnnotation() {
+            // Reset everything for a new image
+            annotations = [];
+            imageFile = null;
+            document.getElementById('annotationSection').style.display = 'none';
+            document.getElementById('cameraInput').value = '';
+            updateAnnotationsList();
+            document.getElementById('status').textContent = '';
+            document.getElementById('status').className = 'status';
         }
 
         function previewYOLO12() {
