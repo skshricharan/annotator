@@ -173,36 +173,16 @@
                 <h3>Annotations:</h3>
             </div>
 
-            <!-- Roboflow Configuration -->
-            <div class="roboflow-section">
-                <h3>Roboflow Configuration</h3>
-                <input type="text" id="apiKey" class="config-input" placeholder="Roboflow API Key" value="YOUR_API_KEY_HERE">
-                <input type="text" id="projectId" class="config-input" placeholder="Project ID" value="YOUR_PROJECT_ID_HERE">
-                <input type="text" id="versionId" class="config-input" placeholder="Version ID (optional)">
-        function getYOLO12TextFormat() {
-            // Get unique class names and create class mapping
-            const uniqueClasses = [...new Set(annotations.map(a => a.label))];
-            const classMapping = {};
-            uniqueClasses.forEach((className, index) => {
-                classMapping[className] = index;
-            });
+            <!-- Hidden Roboflow Configuration -->
+            <input type="hidden" id="apiKey" value="YOUR_API_KEY_HERE">
+            <input type="hidden" id="projectId" value="YOUR_PROJECT_ID_HERE">
+            <input type="hidden" id="versionId" value="">
             
-            let yoloText = '';
-            annotations.forEach(annotation => {
-                const centerX = (annotation.x + annotation.width / 2) / canvas.width;
-                const centerY = (annotation.y + annotation.height / 2) / canvas.height;
-                const width = annotation.width / canvas.width;
-                const height = annotation.height / canvas.height;
-                
-                // YOLO12 format: class_id center_x center_y width height
-                yoloText += `${classMapping[annotation.label]} ${centerX.toFixed(6)} ${centerY.toFixed(6)} ${width.toFixed(6)} ${height.toFixed(6)}\n`;
-            });
-            
-            return {
-                text: yoloText,
-                classMapping: classMapping
-            };
-        }
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="previewYOLO12()">Preview YOLO12</button>
+                <button class="btn btn-success" onclick="submitAnnotations()">Submit to Roboflow</button>
+                <button class="btn btn-primary" onclick="startNewAnnotation()">New Image</button>
             </div>
 
             <div id="status"></div>
@@ -385,8 +365,6 @@
             drawImage();
         }
 
-
-
         function getYOLO12TextFormat() {
             // Get unique class names and create class mapping
             const uniqueClasses = [...new Set(annotations.map(a => a.label))];
@@ -412,13 +390,70 @@
             };
         }
 
+        function convertToYOLOForRoboflow() {
+            // Get unique class names and create class mapping
+            const uniqueClasses = [...new Set(annotations.map(a => a.label))];
+            const classMapping = {};
+            uniqueClasses.forEach((className, index) => {
+                classMapping[className] = index;
+            });
+            
+            console.log('Class mapping:', classMapping); // For debugging
+            
+            return annotations.map(annotation => {
+                // Convert to YOLO12 format (normalized coordinates)
+                const centerX = (annotation.x + annotation.width / 2) / canvas.width;
+                const centerY = (annotation.y + annotation.height / 2) / canvas.height;
+                const width = annotation.width / canvas.width;
+                const height = annotation.height / canvas.height;
+                
+                return {
+                    class: classMapping[annotation.label], // Use class ID instead of name
+                    x: centerX,
+                    y: centerY,
+                    width: width,
+                    height: height
+                };
+            });
+        }
+
+        function startNewAnnotation() {
+            // Reset everything for a new image
+            annotations = [];
+            imageFile = null;
+            document.getElementById('annotationSection').style.display = 'none';
+            document.getElementById('cameraInput').value = '';
+            updateAnnotationsList();
+            document.getElementById('status').textContent = '';
+            document.getElementById('status').className = 'status';
+        }
+
+        function previewYOLO12() {
+            if (annotations.length === 0) {
+                showStatus('No annotations to preview', 'error');
+                return;
+            }
+            
+            const yoloData = getYOLO12TextFormat();
+            
+            let message = 'YOLO12 Format:\n\n';
+            message += 'Class Mapping:\n';
+            Object.entries(yoloData.classMapping).forEach(([className, classId]) => {
+                message += `${classId}: ${className}\n`;
+            });
+            message += '\nAnnotations:\n';
+            message += yoloData.text;
+            
+            alert(message);
+        }
+
         async function submitAnnotations() {
             const apiKey = document.getElementById('apiKey').value;
             const projectId = document.getElementById('projectId').value;
             const versionId = document.getElementById('versionId').value;
 
             if (!apiKey || !projectId) {
-                showStatus('Please enter API Key and Project ID', 'error');
+                showStatus('Please configure API Key and Project ID in the code', 'error');
                 return;
             }
 
@@ -489,63 +524,6 @@
             } catch (error) {
                 showStatus(`Error uploading to Roboflow: ${error.message}`, 'error');
             }
-        }
-
-        function convertToYOLOForRoboflow() {
-            // Get unique class names and create class mapping
-            const uniqueClasses = [...new Set(annotations.map(a => a.label))];
-            const classMapping = {};
-            uniqueClasses.forEach((className, index) => {
-                classMapping[className] = index;
-            });
-            
-            console.log('Class mapping:', classMapping); // For debugging
-            
-            return annotations.map(annotation => {
-                // Convert to YOLO12 format (normalized coordinates)
-                const centerX = (annotation.x + annotation.width / 2) / canvas.width;
-                const centerY = (annotation.y + annotation.height / 2) / canvas.height;
-                const width = annotation.width / canvas.width;
-                const height = annotation.height / canvas.height;
-                
-                return {
-                    class: classMapping[annotation.label], // Use class ID instead of name
-                    x: centerX,
-                    y: centerY,
-                    width: width,
-                    height: height
-                };
-            });
-        }
-
-        function startNewAnnotation() {
-            // Reset everything for a new image
-            annotations = [];
-            imageFile = null;
-            document.getElementById('annotationSection').style.display = 'none';
-            document.getElementById('cameraInput').value = '';
-            updateAnnotationsList();
-            document.getElementById('status').textContent = '';
-            document.getElementById('status').className = 'status';
-        }
-
-        function previewYOLO12() {
-            if (annotations.length === 0) {
-                showStatus('No annotations to preview', 'error');
-                return;
-            }
-            
-            const yoloData = getYOLO12TextFormat();
-            
-            let message = 'YOLO12 Format:\n\n';
-            message += 'Class Mapping:\n';
-            Object.entries(yoloData.classMapping).forEach(([className, classId]) => {
-                message += `${classId}: ${className}\n`;
-            });
-            message += '\nAnnotations:\n';
-            message += yoloData.text;
-            
-            alert(message);
         }
 
         function showStatus(message, type) {
