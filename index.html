@@ -183,6 +183,7 @@
                 <button class="btn btn-primary" onclick="previewYOLO12()">Preview YOLO12</button>
                 <button class="btn btn-success" onclick="submitAnnotations()">Submit to Roboflow</button>
                 <button class="btn btn-primary" onclick="startNewAnnotation()">New Image</button>
+                <button class="btn btn-primary" onclick="debugInfo()">Debug Info</button>
             </div>
 
             <div id="status"></div>
@@ -243,6 +244,19 @@
         }
 
         function setupEventListeners() {
+            // Prevent default touch behaviors on canvas
+            canvas.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchend', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
             // Touch events for mobile
             canvas.addEventListener('touchstart', handleStart, false);
             canvas.addEventListener('touchmove', handleMove, false);
@@ -256,8 +270,21 @@
 
         function getEventPos(e) {
             const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            let clientX, clientY;
+            
+            if (e.touches && e.touches.length > 0) {
+                // Touch event
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                // Touch end event
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else {
+                // Mouse event
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
             
             return {
                 x: (clientX - rect.left) * (canvas.width / rect.width),
@@ -271,6 +298,7 @@
             isDrawing = true;
             startX = pos.x;
             startY = pos.y;
+            console.log('Touch start:', startX, startY); // Debug
         }
 
         function handleMove(e) {
@@ -293,8 +321,12 @@
             const width = pos.x - startX;
             const height = pos.y - startY;
             
-            // Only add annotation if box has meaningful size
-            if (Math.abs(width) > 10 && Math.abs(height) > 10) {
+            console.log('Touch end - Start:', startX, startY, 'End:', pos.x, pos.y);
+            console.log('Box size - Width:', width, 'Height:', height);
+            console.log('Absolute size - Width:', Math.abs(width), 'Height:', Math.abs(height));
+            
+            // Reduce minimum size requirement for mobile
+            if (Math.abs(width) > 5 && Math.abs(height) > 5) {
                 const label = document.getElementById('labelInput').value || 'object';
                 
                 // Normalize coordinates (handle negative width/height)
@@ -303,16 +335,25 @@
                 const w = Math.abs(width);
                 const h = Math.abs(height);
                 
-                annotations.push({
+                const newAnnotation = {
                     x: x,
                     y: y,
                     width: w,
                     height: h,
                     label: label
-                });
+                };
                 
+                annotations.push(newAnnotation);
+                
+                console.log('Added annotation:', newAnnotation);
+                console.log('Total annotations:', annotations.length);
                 updateAnnotationsList();
                 drawImage();
+                showStatus(`Added annotation: ${label} (${Math.round(w)}x${Math.round(h)})`, 'success');
+            } else {
+                console.log('Box too small - Width:', Math.abs(width), 'Height:', Math.abs(height), 'Required: 5x5');
+                drawImage(); // Clear the temporary box
+                showStatus(`Box too small. Draw a bigger box (minimum 5x5 pixels)`, 'error');
             }
             
             isDrawing = false;
@@ -524,6 +565,19 @@
             } catch (error) {
                 showStatus(`Error uploading to Roboflow: ${error.message}`, 'error');
             }
+        }
+
+        function debugInfo() {
+            const info = `
+Debug Info:
+- Total annotations: ${annotations.length}
+- Canvas size: ${canvas ? canvas.width + 'x' + canvas.height : 'No canvas'}
+- Image loaded: ${img ? 'Yes' : 'No'}
+- Drawing state: ${isDrawing ? 'Active' : 'Inactive'}
+- Touch support: ${'ontouchstart' in window ? 'Yes' : 'No'}
+- User agent: ${navigator.userAgent.substring(0, 50)}...
+            `;
+            alert(info);
         }
 
         function showStatus(message, type) {
