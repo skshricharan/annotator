@@ -491,7 +491,6 @@
         async function submitAnnotations() {
             const apiKey = document.getElementById('apiKey').value;
             const projectId = document.getElementById('projectId').value;
-            const versionId = document.getElementById('versionId').value;
 
             if (!apiKey || !projectId) {
                 showStatus('Please configure API Key and Project ID in the code', 'error');
@@ -509,17 +508,15 @@
             }
 
             try {
-                showStatus('Uploading image to Roboflow...', 'success');
+                showStatus('Preparing upload to Roboflow...', 'success');
                 
-                // Step 1: Upload the image
+                // Step 1: Upload the image first
                 const formData = new FormData();
                 formData.append('file', imageFile);
                 formData.append('name', `annotation_${Date.now()}.jpg`);
+                formData.append('split', 'train');
                 
-                let uploadUrl = `https://api.roboflow.com/dataset/${projectId}/upload?api_key=${apiKey}`;
-                if (versionId) {
-                    uploadUrl += `&version=${versionId}`;
-                }
+                const uploadUrl = `https://api.roboflow.com/dataset/${projectId}/upload?api_key=${apiKey}`;
                 
                 const uploadResponse = await fetch(uploadUrl, {
                     method: 'POST',
@@ -533,37 +530,52 @@
                     return;
                 }
 
-                showStatus('Adding annotations...', 'success');
+                showStatus('Image uploaded! Adding annotations...', 'success');
 
-                // Step 2: Add annotations if we have them
-                const yoloAnnotations = convertToYOLOForRoboflow();
+                // Step 2: Create YOLO annotation data
+                const yoloData = getYOLO12TextFormat();
                 
-                if (yoloAnnotations.length > 0) {
-                    const annotateUrl = `https://api.roboflow.com/dataset/${projectId}/annotate/${uploadResult.id}?api_key=${apiKey}`;
-                    
-                    const annotateResponse = await fetch(annotateUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            annotations: yoloAnnotations
-                        })
-                    });
+                // Create annotation file as blob
+                const annotationBlob = new Blob([yoloData.text], { type: 'text/plain' });
+                
+                // Create class mapping file as blob
+                let classMapText = '';
+                Object.entries(yoloData.classMapping).forEach(([className, classId]) => {
+                    classMapText += `${className}\n`;
+                });
+                const classMapBlob = new Blob([classMapText], { type: 'text/plain' });
 
-                    const annotateResult = await annotateResponse.json();
+                // Step 3: Upload annotations using the upload API with annotation files
+                const annotationFormData = new FormData();
+                annotationFormData.append('file', imageFile); // Re-upload image with annotations
+                annotationFormData.append('annotation_file', annotationBlob, 'annotations.txt');
+                annotationFormData.append('name', `annotated_${Date.now()}.jpg`);
+                annotationFormData.append('split', 'train');
+                
+                const annotatedUploadResponse = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: annotationFormData
+                });
+
+                const annotatedResult = await annotatedUploadResponse.json();
+                
+                if (annotatedUploadResponse.ok) {
+                    showStatus(`Successfully uploaded with ${annotations.length} annotations! Check your Roboflow project.`, 'success');
                     
-                    if (annotateResponse.ok) {
-                        showStatus(`Successfully uploaded with ${annotations.length} annotations! Image ID: ${uploadResult.id}`, 'success');
-                    } else {
-                        showStatus(`Image uploaded but annotation failed: ${annotateResult.error || 'Unknown error'}`, 'error');
-                    }
+                    // Show class mapping info
+                    let mappingInfo = 'Class Mapping:\n';
+                    Object.entries(yoloData.classMapping).forEach(([className, classId]) => {
+                        mappingInfo += `${classId}: ${className}\n`;
+                    });
+                    console.log(mappingInfo);
+                    console.log('YOLO annotations:', yoloData.text);
                 } else {
-                    showStatus(`Image uploaded successfully! Image ID: ${uploadResult.id}`, 'success');
+                    showStatus(`Error uploading annotations: ${annotatedResult.error || 'Unknown error'}`, 'error');
                 }
                 
             } catch (error) {
                 showStatus(`Error uploading to Roboflow: ${error.message}`, 'error');
+                console.error('Full error:', error);
             }
         }
 
@@ -594,4 +606,3 @@ Debug Info:
     </script>
 </body>
 </html>
-
